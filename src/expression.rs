@@ -1,8 +1,8 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SpdxExpression {
-    SimpleExpression(SimpleExpression),
-    CompoundExpression(CompoundExpression),
-    WithExpression(WithExpression),
+pub enum SpdxExpression {
+    Simple(SimpleExpression),
+    Compound(CompoundExpression),
+    With(WithExpression),
 }
 
 impl SpdxExpression {
@@ -11,27 +11,27 @@ impl SpdxExpression {
         document_ref: Option<String>,
         license_ref: bool,
     ) -> Self {
-        Self::SimpleExpression(SimpleExpression::new(identifier, document_ref, license_ref))
+        Self::Simple(SimpleExpression::new(identifier, document_ref, license_ref))
     }
 
     pub(crate) fn and(left: Self, right: Self) -> Self {
-        Self::CompoundExpression(CompoundExpression::new(left, SpdxOperator::And, right))
+        Self::Compound(CompoundExpression::new(left, SpdxOperator::And, right))
     }
 
     pub(crate) fn or(left: Self, right: Self) -> Self {
-        Self::CompoundExpression(CompoundExpression::new(left, SpdxOperator::Or, right))
+        Self::Compound(CompoundExpression::new(left, SpdxOperator::Or, right))
     }
 
     pub(crate) fn with(license: SimpleExpression, exception: String) -> Self {
-        Self::WithExpression(WithExpression::new(license, exception))
+        Self::With(WithExpression::new(license, exception))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct SimpleExpression {
-    pub(crate) identifier: String,
-    pub(crate) document_ref: Option<String>,
-    pub(crate) license_ref: bool,
+pub struct SimpleExpression {
+    pub identifier: String,
+    pub document_ref: Option<String>,
+    pub license_ref: bool,
 }
 
 impl SimpleExpression {
@@ -45,16 +45,16 @@ impl SimpleExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SpdxOperator {
+pub enum SpdxOperator {
     And,
     Or,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CompoundExpression {
-    pub(crate) left: Box<SpdxExpression>,
-    pub(crate) operator: SpdxOperator,
-    pub(crate) right: Box<SpdxExpression>,
+pub struct CompoundExpression {
+    pub left: Box<SpdxExpression>,
+    pub operator: SpdxOperator,
+    pub right: Box<SpdxExpression>,
 }
 
 impl CompoundExpression {
@@ -68,9 +68,9 @@ impl CompoundExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct WithExpression {
-    pub(crate) license: SimpleExpression,
-    pub(crate) exception: String,
+pub struct WithExpression {
+    pub license: SimpleExpression,
+    pub exception: String,
 }
 
 impl WithExpression {

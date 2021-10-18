@@ -1,16 +1,26 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
-    character::{complete::space1, streaming::char},
+    character::{
+        complete::{multispace0, space1},
+        streaming::char,
+    },
     combinator::{complete, map, opt, recognize},
     error::VerboseError,
-    sequence::{delimited, pair, separated_pair, terminated, tuple},
+    sequence::{delimited, pair, separated_pair, tuple},
     AsChar, IResult,
 };
 
-use crate::expression::{
-    CompoundExpression, SimpleExpression, SpdxExpression, SpdxOperator, WithExpression,
-};
+use crate::expression::{SimpleExpression, SpdxExpression};
+
+pub fn spdx_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+    alt((
+        ws(parentheses),
+        ws(and_expression),
+        ws(or_expression),
+        ws(simple_expression),
+    ))(i)
+}
 
 fn idstring(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     take_while1(|c: char| c.is_alphanum() || c == '-' || c == '.')(i)
@@ -46,10 +56,7 @@ fn simple_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str
             let document_ref = document_ref.map(|document_ref| document_ref.to_string());
             SpdxExpression::simple(id.to_string(), document_ref, true)
         }),
-        map(complete(terminated(idstring, char('+'))), |id| {
-            SpdxExpression::simple(format!("{}+", id), None, false)
-        }),
-        map(idstring, |id| {
+        map(license_idstring, |id| {
             SpdxExpression::simple(id.to_string(), None, false)
         }),
     ))(i)
@@ -65,29 +72,57 @@ fn with_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>>
 fn and_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
     map(
         tuple((
-            simple_expression,
-            space1,
-            and,
-            space1,
-            alt((and_expression, or_expression, simple_expression)),
+            alt((parentheses, simple_expression)),
+            ws(and),
+            alt((
+                ws(parentheses),
+                ws(and_expression),
+                ws(or_expression),
+                ws(with_expression),
+                ws(simple_expression),
+            )),
         )),
-        |(left, _, _, _, right)| SpdxExpression::and(left, right),
+        |(left, _, right)| SpdxExpression::and(left, right),
+    )(i)
+}
+
+fn parentheses(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+    delimited(
+        char('('),
+        alt((
+            parentheses,
+            and_expression,
+            or_expression,
+            with_expression,
+            simple_expression,
+        )),
+        char(')'),
     )(i)
 }
 
 fn or_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
     map(
         tuple((
-            simple_expression,
-            space1,
-            or,
-            space1,
-            alt((and_expression, or_expression, simple_expression)),
+            alt((ws(parentheses), ws(simple_expression))),
+            ws(or),
+            alt((
+                ws(parentheses),
+                ws(and_expression),
+                ws(or_expression),
+                ws(simple_expression),
+            )),
         )),
-        |(left, _, _, _, right)| SpdxExpression::or(left, right),
+        |(left, _, right)| SpdxExpression::or(left, right),
     )(i)
 }
-
+/// A combinator that takes a parser `inner` and produces a parser that also consumes both leading and
+/// trailing whitespace, returning the output of `inner`.
+fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, VerboseError<&str>>
+where
+    F: Fn(&'a str) -> IResult<&'a str, O, VerboseError<&str>>,
+{
+    delimited(multispace0, inner, multispace0)
+}
 fn with(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     alt((tag("WITH"), tag("with")))(i)
 }
@@ -256,6 +291,57 @@ mod tests {
     }
 
     #[test]
+    fn and_expression_nested_with() {
+        let (_, result) = and_expression("GPL-2.0 AND LGPL-2.1 WITH GCC-exception-2.0").unwrap();
+        assert_eq!(
+            result,
+            SpdxExpression::and(
+                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
+                SpdxExpression::with(
+                    SimpleExpression::new("LGPL-2.1".to_string(), None, false),
+                    "GCC-exception-2.0".to_string()
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn and_expression_parentheses() {
+        let (_, result) = and_expression("(GPL-2.0 AND LGPL-2.1) AND (MIT AND ISC)").unwrap();
+        assert_eq!(
+            result,
+            SpdxExpression::and(
+                SpdxExpression::and(
+                    SpdxExpression::simple("GPL-2.0".to_string(), None, false),
+                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false),
+                ),
+                SpdxExpression::and(
+                    SpdxExpression::simple("MIT".to_string(), None, false),
+                    SpdxExpression::simple("ISC".to_string(), None, false),
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn and_expression_parentheses_or() {
+        let (_, result) = and_expression("(GPL-2.0 AND LGPL-2.1) AND (MIT OR ISC)").unwrap();
+        assert_eq!(
+            result,
+            SpdxExpression::and(
+                SpdxExpression::and(
+                    SpdxExpression::simple("GPL-2.0".to_string(), None, false),
+                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false),
+                ),
+                SpdxExpression::or(
+                    SpdxExpression::simple("MIT".to_string(), None, false),
+                    SpdxExpression::simple("ISC".to_string(), None, false),
+                )
+            )
+        );
+    }
+
+    #[test]
     fn or_expression_simple() {
         let (_, result) = or_expression("GPL-2.0 OR MIT").unwrap();
         assert_eq!(
@@ -292,6 +378,24 @@ mod tests {
                 SpdxExpression::and(
                     SpdxExpression::simple("MIT".to_string(), None, false),
                     SpdxExpression::simple("LGPL-2.1".to_string(), None, false)
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn or_expression_parentheses() {
+        let (_, result) = or_expression("(GPL-2.0 AND LGPL-2.1) OR (MIT OR ISC)").unwrap();
+        assert_eq!(
+            result,
+            SpdxExpression::or(
+                SpdxExpression::and(
+                    SpdxExpression::simple("GPL-2.0".to_string(), None, false),
+                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false),
+                ),
+                SpdxExpression::or(
+                    SpdxExpression::simple("MIT".to_string(), None, false),
+                    SpdxExpression::simple("ISC".to_string(), None, false),
                 )
             )
         );
