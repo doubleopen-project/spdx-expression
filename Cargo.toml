@@ -9,3 +9,6 @@ description = "SPDX Expression"
 
 [dependencies]
 nom = "7"
+
+[dev-dependencies]
+pretty_assertions = "1"
