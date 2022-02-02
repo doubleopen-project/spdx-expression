@@ -18,7 +18,7 @@ use nom::{
 use crate::inner_variant::{ExpressionVariant, SimpleExpression};
 
 #[tracing::instrument]
-pub(crate) fn spdx_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
+pub fn spdx_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     alt((
         ws(parentheses),
         ws(and_expression),
@@ -51,7 +51,7 @@ fn license_ref(i: &str) -> IResult<&str, (Option<&str>, &str), VerboseError<&str
 fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression, VerboseError<&str>> {
     alt((
         map(license_ref, |(document_ref, id)| {
-            let document_ref = document_ref.map(|document_ref| document_ref.to_string());
+            let document_ref = document_ref.map(std::string::ToString::to_string);
             SimpleExpression::new(id.to_string(), document_ref, true)
         }),
         map(license_idstring, |id| {
@@ -64,7 +64,7 @@ fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression, Verbose
 fn simple_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     alt((
         map(license_ref, |(document_ref, id)| {
-            let document_ref = document_ref.map(|document_ref| document_ref.to_string());
+            let document_ref = document_ref.map(std::string::ToString::to_string);
             ExpressionVariant::simple(id.to_string(), document_ref, true)
         }),
         map(license_idstring, |id| {

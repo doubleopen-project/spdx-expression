@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: MIT
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ExpressionVariant {
+pub enum ExpressionVariant {
     Simple(SimpleExpression),
     Compound(CompoundExpression),
     With(WithExpression),
 }
 
 impl ExpressionVariant {
-    pub(crate) fn simple(
+    pub const fn simple(
         identifier: String,
         document_ref: Option<String>,
         license_ref: bool,
@@ -18,28 +18,28 @@ impl ExpressionVariant {
         Self::Simple(SimpleExpression::new(identifier, document_ref, license_ref))
     }
 
-    pub(crate) fn and(left: Self, right: Self) -> Self {
+    pub fn and(left: Self, right: Self) -> Self {
         Self::Compound(CompoundExpression::new(left, SpdxOperator::And, right))
     }
 
-    pub(crate) fn or(left: Self, right: Self) -> Self {
+    pub fn or(left: Self, right: Self) -> Self {
         Self::Compound(CompoundExpression::new(left, SpdxOperator::Or, right))
     }
 
-    pub(crate) fn with(license: SimpleExpression, exception: String) -> Self {
+    pub const fn with(license: SimpleExpression, exception: String) -> Self {
         Self::With(WithExpression::new(license, exception))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct SimpleExpression {
+pub struct SimpleExpression {
     pub identifier: String,
     pub document_ref: Option<String>,
     pub license_ref: bool,
 }
 
 impl SimpleExpression {
-    pub(crate) fn new(identifier: String, document_ref: Option<String>, license_ref: bool) -> Self {
+    pub const fn new(identifier: String, document_ref: Option<String>, license_ref: bool) -> Self {
         Self {
             identifier,
             document_ref,
@@ -55,7 +55,7 @@ pub enum SpdxOperator {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CompoundExpression {
+pub struct CompoundExpression {
     pub left: Box<ExpressionVariant>,
     pub operator: SpdxOperator,
     pub right: Box<ExpressionVariant>,
@@ -76,13 +76,13 @@ impl CompoundExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct WithExpression {
+pub struct WithExpression {
     pub license: SimpleExpression,
     pub exception: String,
 }
 
 impl WithExpression {
-    pub(crate) fn new(license: SimpleExpression, exception: String) -> Self {
+    pub const fn new(license: SimpleExpression, exception: String) -> Self {
         Self { license, exception }
     }
 }

@@ -40,10 +40,16 @@ impl SPDXExpression {
     /// let expression = SPDXExpression::parse("MIT OR InvalidLicenseId")?;
     /// # Ok::<(), SpdxExpressionError>(())
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `SpdxExpressionError` if the license expression is not syntactically valid.
     pub fn parse(expression: &str) -> Result<Self, SpdxExpressionError> {
         Ok(Self {
             expression_string: expression.to_owned(),
-            inner: parse::spdx_expression(expression).unwrap().1,
+            inner: parse::spdx_expression(expression)
+                .map_err(|err| SpdxExpressionError::Parse(err.to_string()))?
+                .1,
         })
     }
 

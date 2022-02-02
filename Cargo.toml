@@ -5,9 +5,16 @@
 [package]
 name = "spdx-expression"
 version = "0.1.0"
+authors = ["Mikko Murto <mikko.murto@hhpartners.fi>"]
 edition = "2018"
 license = "MIT"
 description = "SPDX Expression"
+homepage = "https://github.com/doubleopen-project/spdx-expression"
+repository = "https://github.com/doubleopen-project/spdx-expression"
+documentation = "https://docs.rs/spdx-expression"
+readme = "README.md"
+keywords = ["SPDX"]
+categories = ["data-structures"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
