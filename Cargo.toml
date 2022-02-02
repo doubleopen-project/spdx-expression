@@ -9,6 +9,8 @@ description = "SPDX Expression"
 
 [dependencies]
 nom = "7"
+thiserror = "1"
+tracing = "0.1"
 
 [dev-dependencies]
 pretty_assertions = "1"

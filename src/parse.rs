@@ -11,9 +11,10 @@ use nom::{
     AsChar, IResult,
 };
 
-use crate::expression::{SimpleExpression, SpdxExpression};
+use crate::inner_variant::{ExpressionVariant, SimpleExpression};
 
-pub fn spdx_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+#[tracing::instrument]
+pub(crate) fn spdx_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     alt((
         ws(parentheses),
         ws(and_expression),
@@ -22,22 +23,27 @@ pub fn spdx_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&s
     ))(i)
 }
 
+#[tracing::instrument]
 fn idstring(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     take_while1(|c: char| c.is_alphanum() || c == '-' || c == '.')(i)
 }
 
+#[tracing::instrument]
 fn license_idstring(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     recognize(pair(idstring, opt(complete(char('+')))))(i)
 }
 
+#[tracing::instrument]
 fn document_ref(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     delimited(tag("DocumentRef-"), idstring, char(':'))(i)
 }
 
+#[tracing::instrument]
 fn license_ref(i: &str) -> IResult<&str, (Option<&str>, &str), VerboseError<&str>> {
     separated_pair(opt(document_ref), tag("LicenseRef-"), idstring)(i)
 }
 
+#[tracing::instrument]
 fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression, VerboseError<&str>> {
     alt((
         map(license_ref, |(document_ref, id)| {
@@ -50,29 +56,35 @@ fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression, Verbose
     ))(i)
 }
 
-fn simple_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+#[tracing::instrument]
+fn simple_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     alt((
         map(license_ref, |(document_ref, id)| {
             let document_ref = document_ref.map(|document_ref| document_ref.to_string());
-            SpdxExpression::simple(id.to_string(), document_ref, true)
+            ExpressionVariant::simple(id.to_string(), document_ref, true)
         }),
         map(license_idstring, |id| {
-            SpdxExpression::simple(id.to_string(), None, false)
+            ExpressionVariant::simple(id.to_string(), None, false)
         }),
     ))(i)
 }
 
-fn with_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+#[tracing::instrument]
+fn with_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     map(
         tuple((simple_license_expression, space1, with, space1, idstring)),
-        |(license, _, _, _, exception)| SpdxExpression::with(license, exception.to_string()),
+        |(license, _, _, _, exception)| ExpressionVariant::with(license, exception.to_string()),
     )(i)
 }
-
-fn and_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+fn and_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     map(
         tuple((
-            alt((parentheses, simple_expression)),
+            alt((
+                parentheses,
+                simple_expression,
+                ws(or_expression),
+                ws(with_expression),
+            )),
             ws(and),
             alt((
                 ws(parentheses),
@@ -82,11 +94,12 @@ fn and_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> 
                 ws(simple_expression),
             )),
         )),
-        |(left, _, right)| SpdxExpression::and(left, right),
+        |(left, _, right)| ExpressionVariant::and(left, right),
     )(i)
 }
 
-fn parentheses(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+#[tracing::instrument]
+fn parentheses(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     delimited(
         char('('),
         alt((
@@ -100,10 +113,16 @@ fn parentheses(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
     )(i)
 }
 
-fn or_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
+#[tracing::instrument]
+fn or_expression(i: &str) -> IResult<&str, ExpressionVariant, VerboseError<&str>> {
     map(
         tuple((
-            alt((ws(parentheses), ws(simple_expression))),
+            alt((
+                ws(parentheses),
+                ws(and_expression),
+                ws(with_expression),
+                ws(simple_expression),
+            )),
             ws(or),
             alt((
                 ws(parentheses),
@@ -112,7 +131,7 @@ fn or_expression(i: &str) -> IResult<&str, SpdxExpression, VerboseError<&str>> {
                 ws(simple_expression),
             )),
         )),
-        |(left, _, right)| SpdxExpression::or(left, right),
+        |(left, _, right)| ExpressionVariant::or(left, right),
     )(i)
 }
 /// A combinator that takes a parser `inner` and produces a parser that also consumes both leading and
@@ -123,14 +142,18 @@ where
 {
     delimited(multispace0, inner, multispace0)
 }
+
+#[tracing::instrument]
 fn with(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     alt((tag("WITH"), tag("with")))(i)
 }
 
+#[tracing::instrument]
 fn and(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     alt((tag("AND"), tag("and")))(i)
 }
 
+#[tracing::instrument]
 fn or(i: &str) -> IResult<&str, &str, VerboseError<&str>> {
     alt((tag("OR"), tag("or")))(i)
 }
@@ -140,10 +163,10 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        expression::{SimpleExpression, SpdxExpression},
+        inner_variant::{ExpressionVariant, SimpleExpression},
         parse::{
             and_expression, document_ref, idstring, license_idstring, license_ref, or_expression,
-            simple_expression, with_expression,
+            parentheses, simple_expression, with_expression,
         },
     };
 
@@ -188,7 +211,7 @@ mod tests {
         let (_, result) = simple_expression("MIT").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::simple("MIT".to_string(), None, false)
+            ExpressionVariant::simple("MIT".to_string(), None, false)
         );
     }
 
@@ -197,7 +220,7 @@ mod tests {
         let (_, result) = simple_expression("LicenseRef-Unknown-license").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::simple("Unknown-license".to_string(), None, true)
+            ExpressionVariant::simple("Unknown-license".to_string(), None, true)
         );
     }
 
@@ -206,7 +229,7 @@ mod tests {
         let (_, result) = simple_expression("GPL-2.0+").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::simple("GPL-2.0+".to_string(), None, false)
+            ExpressionVariant::simple("GPL-2.0+".to_string(), None, false)
         );
     }
 
@@ -216,7 +239,7 @@ mod tests {
             simple_expression("DocumentRef-SPDX-DOC:LicenseRef-New-license-1.0").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::simple(
+            ExpressionVariant::simple(
                 "New-license-1.0".to_string(),
                 Some("SPDX-DOC".to_string()),
                 true
@@ -237,11 +260,32 @@ mod tests {
     }
 
     #[test]
+    fn simple_parentheses() {
+        let (_, result) = parentheses("(MIT)").unwrap();
+        assert_eq!(
+            result,
+            ExpressionVariant::simple("MIT".to_string(), None, false)
+        );
+    }
+
+    #[test]
+    fn double_parentheses() {
+        let (_, result) = parentheses("(MIT AND (ISC))").unwrap();
+        assert_eq!(
+            result,
+            ExpressionVariant::and(
+                ExpressionVariant::simple("MIT".to_string(), None, false),
+                ExpressionVariant::simple("ISC".to_string(), None, false)
+            )
+        );
+    }
+
+    #[test]
     fn with_expression_simple() {
         let (_, result) = with_expression("GPL-2.0 WITH Autoconf-exception-2.0").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::with(
+            ExpressionVariant::with(
                 SimpleExpression::new("GPL-2.0".to_string(), None, false),
                 "Autoconf-exception-2.0".to_string()
             )
@@ -253,9 +297,9 @@ mod tests {
         let (_, result) = and_expression("GPL-2.0 AND MIT").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::and(
-                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                SpdxExpression::simple("MIT".to_string(), None, false),
+            ExpressionVariant::and(
+                ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                ExpressionVariant::simple("MIT".to_string(), None, false),
             )
         );
     }
@@ -265,11 +309,11 @@ mod tests {
         let (_, result) = and_expression("GPL-2.0 AND MIT AND LGPL-2.1").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::and(
-                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                SpdxExpression::and(
-                    SpdxExpression::simple("MIT".to_string(), None, false),
-                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false)
+            ExpressionVariant::and(
+                ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                ExpressionVariant::and(
+                    ExpressionVariant::simple("MIT".to_string(), None, false),
+                    ExpressionVariant::simple("LGPL-2.1".to_string(), None, false)
                 )
             )
         );
@@ -280,11 +324,11 @@ mod tests {
         let (_, result) = and_expression("GPL-2.0 AND MIT OR LGPL-2.1").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::and(
-                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                SpdxExpression::or(
-                    SpdxExpression::simple("MIT".to_string(), None, false),
-                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false)
+            ExpressionVariant::and(
+                ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                ExpressionVariant::or(
+                    ExpressionVariant::simple("MIT".to_string(), None, false),
+                    ExpressionVariant::simple("LGPL-2.1".to_string(), None, false)
                 )
             )
         );
@@ -295,9 +339,9 @@ mod tests {
         let (_, result) = and_expression("GPL-2.0 AND LGPL-2.1 WITH GCC-exception-2.0").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::and(
-                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                SpdxExpression::with(
+            ExpressionVariant::and(
+                ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                ExpressionVariant::with(
                     SimpleExpression::new("LGPL-2.1".to_string(), None, false),
                     "GCC-exception-2.0".to_string()
                 )
@@ -310,14 +354,14 @@ mod tests {
         let (_, result) = and_expression("(GPL-2.0 AND LGPL-2.1) AND (MIT AND ISC)").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::and(
-                SpdxExpression::and(
-                    SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false),
+            ExpressionVariant::and(
+                ExpressionVariant::and(
+                    ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                    ExpressionVariant::simple("LGPL-2.1".to_string(), None, false),
                 ),
-                SpdxExpression::and(
-                    SpdxExpression::simple("MIT".to_string(), None, false),
-                    SpdxExpression::simple("ISC".to_string(), None, false),
+                ExpressionVariant::and(
+                    ExpressionVariant::simple("MIT".to_string(), None, false),
+                    ExpressionVariant::simple("ISC".to_string(), None, false),
                 )
             )
         );
@@ -328,14 +372,14 @@ mod tests {
         let (_, result) = and_expression("(GPL-2.0 AND LGPL-2.1) AND (MIT OR ISC)").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::and(
-                SpdxExpression::and(
-                    SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false),
+            ExpressionVariant::and(
+                ExpressionVariant::and(
+                    ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                    ExpressionVariant::simple("LGPL-2.1".to_string(), None, false),
                 ),
-                SpdxExpression::or(
-                    SpdxExpression::simple("MIT".to_string(), None, false),
-                    SpdxExpression::simple("ISC".to_string(), None, false),
+                ExpressionVariant::or(
+                    ExpressionVariant::simple("MIT".to_string(), None, false),
+                    ExpressionVariant::simple("ISC".to_string(), None, false),
                 )
             )
         );
@@ -346,9 +390,9 @@ mod tests {
         let (_, result) = or_expression("GPL-2.0 OR MIT").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::or(
-                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                SpdxExpression::simple("MIT".to_string(), None, false)
+            ExpressionVariant::or(
+                ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                ExpressionVariant::simple("MIT".to_string(), None, false)
             )
         );
     }
@@ -358,11 +402,11 @@ mod tests {
         let (_, result) = or_expression("GPL-2.0 OR MIT OR LGPL-2.1").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::or(
-                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                SpdxExpression::or(
-                    SpdxExpression::simple("MIT".to_string(), None, false),
-                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false)
+            ExpressionVariant::or(
+                ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                ExpressionVariant::or(
+                    ExpressionVariant::simple("MIT".to_string(), None, false),
+                    ExpressionVariant::simple("LGPL-2.1".to_string(), None, false)
                 )
             )
         );
@@ -373,11 +417,11 @@ mod tests {
         let (_, result) = or_expression("GPL-2.0 OR MIT AND LGPL-2.1").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::or(
-                SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                SpdxExpression::and(
-                    SpdxExpression::simple("MIT".to_string(), None, false),
-                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false)
+            ExpressionVariant::or(
+                ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                ExpressionVariant::and(
+                    ExpressionVariant::simple("MIT".to_string(), None, false),
+                    ExpressionVariant::simple("LGPL-2.1".to_string(), None, false)
                 )
             )
         );
@@ -388,14 +432,14 @@ mod tests {
         let (_, result) = or_expression("(GPL-2.0 AND LGPL-2.1) OR (MIT OR ISC)").unwrap();
         assert_eq!(
             result,
-            SpdxExpression::or(
-                SpdxExpression::and(
-                    SpdxExpression::simple("GPL-2.0".to_string(), None, false),
-                    SpdxExpression::simple("LGPL-2.1".to_string(), None, false),
+            ExpressionVariant::or(
+                ExpressionVariant::and(
+                    ExpressionVariant::simple("GPL-2.0".to_string(), None, false),
+                    ExpressionVariant::simple("LGPL-2.1".to_string(), None, false),
                 ),
-                SpdxExpression::or(
-                    SpdxExpression::simple("MIT".to_string(), None, false),
-                    SpdxExpression::simple("ISC".to_string(), None, false),
+                ExpressionVariant::or(
+                    ExpressionVariant::simple("MIT".to_string(), None, false),
+                    ExpressionVariant::simple("ISC".to_string(), None, false),
                 )
             )
         );

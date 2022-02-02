@@ -1,4 +1,4 @@
-pub(crate) mod expression;
+pub mod error;
+pub mod expression;
+mod inner_variant;
 mod parse;
-
-pub use parse::spdx_expression;
