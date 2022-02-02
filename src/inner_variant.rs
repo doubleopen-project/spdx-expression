@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 HH Partners
+//
+// SPDX-License-Identifier: MIT
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ExpressionVariant {
     Simple(SimpleExpression),

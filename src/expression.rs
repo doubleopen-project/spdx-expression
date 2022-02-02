@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 HH Partners
+//
+// SPDX-License-Identifier: MIT
+
 use std::fmt::Display;
 
 use crate::{error::SpdxExpressionError, inner_variant::ExpressionVariant, parse};
