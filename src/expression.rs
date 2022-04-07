@@ -4,7 +4,7 @@
 
 use std::fmt::Display;
 
-use crate::{error::SpdxExpressionError, inner_variant::ExpressionVariant, parse};
+use crate::{error::SpdxExpressionError, parser::Expression};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SPDXExpression {
@@ -12,7 +12,7 @@ pub struct SPDXExpression {
     expression_string: String,
 
     /// The parsed expression.
-    inner: ExpressionVariant,
+    inner: Expression,
 }
 
 impl SPDXExpression {
@@ -47,9 +47,8 @@ impl SPDXExpression {
     pub fn parse(expression: &str) -> Result<Self, SpdxExpressionError> {
         Ok(Self {
             expression_string: expression.to_owned(),
-            inner: parse::spdx_expression(expression)
-                .map_err(|err| SpdxExpressionError::Parse(err.to_string()))?
-                .1,
+            inner: Expression::parse(expression)
+                .map_err(|err| SpdxExpressionError::Parse(err.to_string()))?,
         })
     }
 
@@ -89,15 +88,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_simple_expression() {
-        let expression = SPDXExpression::parse("MIT").unwrap();
-        assert_eq!(expression.to_string(), "MIT");
-    }
-
-    #[test]
-    fn test_parse_compound_or() {
-        let expression = SPDXExpression::parse("MIT OR Apache-2.0").unwrap();
-        assert_eq!(expression.to_string(), "MIT OR Apache-2.0");
+    fn test_parsing_works() {
+        let expression = SPDXExpression::parse("MIT AND (Apache-2.0 OR ISC)").unwrap();
+        assert_eq!(expression.to_string(), "MIT AND (Apache-2.0 OR ISC)");
     }
 
     #[test]
