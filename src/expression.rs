@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
+//! The main struct of the library.
+
 use std::fmt::Display;
 
 use crate::{error::SpdxExpressionError, inner_variant::Expression};
 
+/// Main struct for SPDX License Expressions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SPDXExpression {
     /// The parsed expression.
