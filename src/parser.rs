@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 HH Partners
+//
+// SPDX-License-Identifier: MIT
+
 //! Parsing logic for SPDX Expressions.
 //!
 //! The code is heavily inspired by
