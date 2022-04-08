@@ -8,36 +8,10 @@ use nom::{
     combinator::{complete, map, opt, recognize},
     multi::many0,
     sequence::{delimited, pair, preceded, separated_pair},
-    AsChar, Finish, IResult,
+    AsChar, IResult,
 };
 
-use crate::{
-    error::SpdxExpressionError,
-    inner_variant::{SimpleExpression, WithExpression},
-};
-
-#[derive(Debug, PartialEq, Clone, Eq)]
-pub enum Expression {
-    Simple(SimpleExpression),
-    With(WithExpression),
-    And(Box<Self>, Box<Self>),
-    Or(Box<Self>, Box<Self>),
-    Parens(Box<Self>),
-}
-
-impl Expression {
-    pub fn parse(i: &str) -> Result<Self, SpdxExpressionError> {
-        let (remaining, expression) = expr(i)
-            .finish()
-            .map_err(|_| SpdxExpressionError::Parse(i.to_string()))?;
-
-        if remaining.is_empty() {
-            Ok(expression)
-        } else {
-            Err(SpdxExpressionError::Parse(i.to_string()))
-        }
-    }
-}
+use crate::inner_variant::{Expression, SimpleExpression, WithExpression};
 
 #[derive(Debug)]
 enum Oper {
@@ -99,7 +73,7 @@ fn term(i: &str) -> IResult<&str, Expression> {
     Ok((i, fold_exprs(initial, remainder)))
 }
 
-fn expr(i: &str) -> IResult<&str, Expression> {
+pub fn expr(i: &str) -> IResult<&str, Expression> {
     let (i, initial) = term(i)?;
     let (i, remainder) = many0(|i| {
         let (i, or) = preceded(tag_no_case("OR"), term)(i)?;
@@ -138,13 +112,13 @@ fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression> {
 }
 
 #[cfg(test)]
-mod test_parser {
+mod test {
     use super::*;
 
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_parse_a_license_id_correctly() {
+    fn parse_a_license_id_correctly() {
         let parsed = Expression::parse("spdx.license-id").unwrap();
         assert_eq!(
             parsed,
@@ -157,7 +131,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_parse_a_license_id_starting_with_a_digit_correctly() {
+    fn parse_a_license_id_starting_with_a_digit_correctly() {
         let parsed = Expression::parse("0license").unwrap();
         assert_eq!(
             parsed,
@@ -166,7 +140,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_parse_a_license_id_with_any_later_version_correctly() {
+    fn parse_a_license_id_with_any_later_version_correctly() {
         let parsed = Expression::parse("license+").unwrap();
         assert_eq!(
             parsed,
@@ -175,7 +149,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_parse_a_document_ref_correctly() {
+    fn parse_a_document_ref_correctly() {
         let parsed = Expression::parse("DocumentRef-document:LicenseRef-license").unwrap();
         assert_eq!(
             parsed,
@@ -188,7 +162,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_parse_a_license_ref_correctly() {
+    fn parse_a_license_ref_correctly() {
         let parsed = Expression::parse("LicenseRef-license").unwrap();
         assert_eq!(
             parsed,
@@ -197,7 +171,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_parse_a_with_expression_correctly() {
+    fn parse_a_with_expression_correctly() {
         let parsed = Expression::parse("license WITH exception").unwrap();
         assert_eq!(
             parsed,
@@ -209,7 +183,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_parse_a_complex_expression_correctly() {
+    fn parse_a_complex_expression_correctly() {
         let parsed = Expression::parse(
             "license1+ and ((license2 with exception1) OR license3+ AND license4 WITH exception2)",
         )
@@ -247,7 +221,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_bind_plus_stronger_than_with() {
+    fn bind_plus_stronger_than_with() {
         let parsed = Expression::parse("license+ WITH exception").unwrap();
         assert_eq!(
             parsed,
@@ -259,7 +233,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_bind_with_stronger_than_and() {
+    fn bind_with_stronger_than_and() {
         let parsed = Expression::parse("license1 AND license2 WITH exception").unwrap();
         assert_eq!(
             parsed,
@@ -278,7 +252,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_bind_and_stronger_than_or() {
+    fn bind_and_stronger_than_or() {
         let parsed = Expression::parse("license1 OR license2 AND license3").unwrap();
         assert_eq!(
             parsed,
@@ -305,7 +279,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_the_and_operator_left_associative() {
+    fn bind_the_and_operator_left_associative() {
         let parsed = Expression::parse("license1 AND license2 AND license3").unwrap();
         assert_eq!(
             parsed,
@@ -332,7 +306,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_the_or_operator_left_associative() {
+    fn bind_the_or_operator_left_associative() {
         let parsed = Expression::parse("license1 OR license2 OR license3").unwrap();
         assert_eq!(
             parsed,
@@ -359,7 +333,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_parentheses_for_binding_strength_of_operators() {
+    fn respect_parentheses_for_binding_strength_of_operators() {
         let parsed = Expression::parse("(license1 OR license2) AND license3").unwrap();
         assert_eq!(
             parsed,
@@ -386,25 +360,25 @@ mod test_parser {
     }
 
     #[test]
-    fn test_fail_if_plus_is_used_in_an_exception_expression() {
+    fn fail_if_plus_is_used_in_an_exception_expression() {
         let parsed = Expression::parse("license WITH exception+");
         assert!(parsed.is_err());
     }
 
     #[test]
-    fn test_fail_if_a_compound_expressions_is_used_before_with() {
+    fn fail_if_a_compound_expressions_is_used_before_with() {
         let parsed = Expression::parse("(license1 AND license2) WITH exception");
         assert!(parsed.is_err());
     }
 
     #[test]
-    fn test_fail_on_an_invalid_symbol() {
+    fn fail_on_an_invalid_symbol() {
         let parsed = Expression::parse("/");
         assert!(parsed.is_err());
     }
 
     #[test]
-    fn test_fail_on_a_syntax_error() {
+    fn fail_on_a_syntax_error() {
         let parsed = Expression::parse("((");
         assert!(parsed.is_err());
     }

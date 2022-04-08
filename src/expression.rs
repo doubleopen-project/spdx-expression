@@ -4,13 +4,10 @@
 
 use std::fmt::Display;
 
-use crate::{error::SpdxExpressionError, parser::Expression};
+use crate::{error::SpdxExpressionError, inner_variant::Expression};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SPDXExpression {
-    /// Store the original input string for easier display.
-    expression_string: String,
-
     /// The parsed expression.
     inner: Expression,
 }
@@ -46,7 +43,6 @@ impl SPDXExpression {
     /// Returns `SpdxExpressionError` if the license expression is not syntactically valid.
     pub fn parse(expression: &str) -> Result<Self, SpdxExpressionError> {
         Ok(Self {
-            expression_string: expression.to_owned(),
             inner: Expression::parse(expression)
                 .map_err(|err| SpdxExpressionError::Parse(err.to_string()))?,
         })
@@ -67,7 +63,8 @@ impl SPDXExpression {
     /// # Ok::<(), SpdxExpressionError>(())
     /// ```
     pub fn licenses(&self) -> Vec<String> {
-        let licenses = self.expression_string.split_ascii_whitespace();
+        let expression_string = self.to_string();
+        let licenses = expression_string.split_ascii_whitespace();
         let licenses = licenses.filter(|&i| i != "OR" && i != "AND" && i != "WITH");
         let licenses = licenses.map(|i| i.replace("(", "").replace(")", ""));
         let mut licenses = licenses.collect::<Vec<_>>();
@@ -79,7 +76,7 @@ impl SPDXExpression {
 
 impl Display for SPDXExpression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.expression_string)
+        write!(f, "{}", self.inner)
     }
 }
 
