@@ -20,8 +20,8 @@ impl SPDXExpression {
     /// # Examples
     ///
     /// ```
-    /// # use spdx_expression::expression::SPDXExpression;
-    /// # use spdx_expression::error::SpdxExpressionError;
+    /// # use spdx_expression::SPDXExpression;
+    /// # use spdx_expression::SpdxExpressionError;
     /// #
     /// let expression = SPDXExpression::parse("MIT")?;
     /// # Ok::<(), SpdxExpressionError>(())
@@ -31,8 +31,8 @@ impl SPDXExpression {
     /// identifiers not on the SPDX license list or not specified with `LicenseRef`.
     ///
     /// ```
-    /// # use spdx_expression::expression::SPDXExpression;
-    /// # use spdx_expression::error::SpdxExpressionError;
+    /// # use spdx_expression::SPDXExpression;
+    /// # use spdx_expression::SpdxExpressionError;
     /// #
     /// let expression = SPDXExpression::parse("MIT OR InvalidLicenseId")?;
     /// # Ok::<(), SpdxExpressionError>(())
@@ -54,8 +54,8 @@ impl SPDXExpression {
     /// # Examples
     ///
     /// ```
-    /// # use spdx_expression::expression::SPDXExpression;
-    /// # use spdx_expression::error::SpdxExpressionError;
+    /// # use spdx_expression::SPDXExpression;
+    /// # use spdx_expression::SpdxExpressionError;
     /// #
     /// let expression = SPDXExpression::parse("MIT OR Apache-2.0")?;
     /// let licenses = expression.licenses();
