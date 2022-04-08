@@ -66,7 +66,7 @@ impl SPDXExpression {
         let expression_string = self.to_string();
         let licenses = expression_string.split_ascii_whitespace();
         let licenses = licenses.filter(|&i| i != "OR" && i != "AND" && i != "WITH");
-        let licenses = licenses.map(|i| i.replace("(", "").replace(")", ""));
+        let licenses = licenses.map(|i| i.replace('(', "").replace(')', ""));
         let mut licenses = licenses.collect::<Vec<_>>();
         licenses.sort_unstable();
         licenses.dedup();
