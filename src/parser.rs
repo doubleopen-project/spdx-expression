@@ -1,3 +1,10 @@
+//! Parsing logic for SPDX Expressions.
+//!
+//! The code is heavily inspired by
+//! <https://github.com/Geal/nom/blob/294ffb3d9e0ade2c3b7ddfff52484b6d643dcce1/tests/arithmetic_ast.rs>
+//! which is licensed under the MIT License. The source project includes the following copyright
+//! statement: Copyright (c) 2014-2019 Geoffroy Couprie.
+
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take_while1},
@@ -113,6 +120,12 @@ fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression> {
 
 #[cfg(test)]
 mod test {
+    //! A lot of the test cases for parsing are copied from
+    //! <https://github.com/oss-review-toolkit/ort/blob/6eb18b6d36f59c6d7ec221bad1cf5d4cd6acfc8b/utils/spdx/src/test/kotlin/SpdxExpressionParserTest.kt>
+    //! which is licensed under the Apache License, Version 2.0 and includes the following copyright
+    //! statement:
+    //! Copyright (C) 2017-2019 HERE Europe B.V.
+
     use super::*;
 
     use pretty_assertions::assert_eq;
