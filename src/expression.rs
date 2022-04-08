@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+//! The main struct of the library.
+
 use std::fmt::Display;
 
 use crate::{error::SpdxExpressionError, inner_variant::Expression};

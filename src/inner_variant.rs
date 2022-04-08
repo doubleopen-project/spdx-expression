@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+//! Private inner structs for [`crate::SPDXExpression`].
+
 use std::fmt::Display;
 
 use nom::Finish;
