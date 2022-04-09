@@ -69,7 +69,7 @@ impl Display for WithExpression {
 }
 
 #[derive(Debug, PartialEq, Clone, Eq)]
-pub enum Expression {
+pub enum ExpressionVariant {
     Simple(SimpleExpression),
     With(WithExpression),
     And(Box<Self>, Box<Self>),
@@ -77,9 +77,9 @@ pub enum Expression {
     Parens(Box<Self>),
 }
 
-impl Display for Expression {
+impl Display for ExpressionVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use self::Expression::{And, Or, Parens, Simple, With};
+        use self::ExpressionVariant::{And, Or, Parens, Simple, With};
 
         match self {
             Simple(expression) => write!(f, "{expression}"),
@@ -91,7 +91,7 @@ impl Display for Expression {
     }
 }
 
-impl Expression {
+impl ExpressionVariant {
     pub fn parse(i: &str) -> Result<Self, SpdxExpressionError> {
         let (remaining, expression) = expr(i)
             .finish()
@@ -111,20 +111,21 @@ mod test {
 
     #[test]
     fn display_simple_correctly() {
-        let expression = Expression::Simple(SimpleExpression::new("MIT".to_string(), None, false));
+        let expression =
+            ExpressionVariant::Simple(SimpleExpression::new("MIT".to_string(), None, false));
         assert_eq!(expression.to_string(), "MIT".to_string());
     }
 
     #[test]
     fn display_licenseref_correctly() {
         let expression =
-            Expression::Simple(SimpleExpression::new("license".to_string(), None, true));
+            ExpressionVariant::Simple(SimpleExpression::new("license".to_string(), None, true));
         assert_eq!(expression.to_string(), "LicenseRef-license".to_string());
     }
 
     #[test]
     fn display_documentref_correctly() {
-        let expression = Expression::Simple(SimpleExpression::new(
+        let expression = ExpressionVariant::Simple(SimpleExpression::new(
             "license".to_string(),
             Some("document".to_string()),
             true,
@@ -137,7 +138,7 @@ mod test {
 
     #[test]
     fn display_with_expression_correctly() {
-        let expression = Expression::With(WithExpression::new(
+        let expression = ExpressionVariant::With(WithExpression::new(
             SimpleExpression::new("license".to_string(), None, false),
             "exception".to_string(),
         ));
@@ -146,20 +147,20 @@ mod test {
 
     #[test]
     fn display_and_expression_correctly() {
-        let expression = Expression::And(
-            Box::new(Expression::And(
-                Box::new(Expression::Simple(SimpleExpression::new(
+        let expression = ExpressionVariant::And(
+            Box::new(ExpressionVariant::And(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license1".to_string(),
                     None,
                     false,
                 ))),
-                Box::new(Expression::Simple(SimpleExpression::new(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license2".to_string(),
                     None,
                     false,
                 ))),
             )),
-            Box::new(Expression::Simple(SimpleExpression::new(
+            Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                 "license3".to_string(),
                 None,
                 false,
@@ -173,20 +174,20 @@ mod test {
 
     #[test]
     fn display_or_expression_correctly() {
-        let expression = Expression::Or(
-            Box::new(Expression::Or(
-                Box::new(Expression::Simple(SimpleExpression::new(
+        let expression = ExpressionVariant::Or(
+            Box::new(ExpressionVariant::Or(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license1".to_string(),
                     None,
                     false,
                 ))),
-                Box::new(Expression::Simple(SimpleExpression::new(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license2".to_string(),
                     None,
                     false,
                 ))),
             )),
-            Box::new(Expression::Simple(SimpleExpression::new(
+            Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                 "license3".to_string(),
                 None,
                 false,

@@ -8,7 +8,7 @@
 
 mod error;
 mod expression;
-mod inner_variant;
+mod expression_variant;
 mod parser;
 
 pub use error::SpdxExpressionError;

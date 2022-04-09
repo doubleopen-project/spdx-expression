@@ -6,13 +6,13 @@
 
 use std::fmt::Display;
 
-use crate::{error::SpdxExpressionError, inner_variant::Expression};
+use crate::{error::SpdxExpressionError, expression_variant::ExpressionVariant};
 
 /// Main struct for SPDX License Expressions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SPDXExpression {
     /// The parsed expression.
-    inner: Expression,
+    inner: ExpressionVariant,
 }
 
 impl SPDXExpression {
@@ -46,7 +46,7 @@ impl SPDXExpression {
     /// Returns `SpdxExpressionError` if the license expression is not syntactically valid.
     pub fn parse(expression: &str) -> Result<Self, SpdxExpressionError> {
         Ok(Self {
-            inner: Expression::parse(expression)
+            inner: ExpressionVariant::parse(expression)
                 .map_err(|err| SpdxExpressionError::Parse(err.to_string()))?,
         })
     }

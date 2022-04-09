@@ -22,7 +22,7 @@ use nom::{
     AsChar, IResult,
 };
 
-use crate::inner_variant::{Expression, SimpleExpression, WithExpression};
+use crate::expression_variant::{ExpressionVariant, SimpleExpression, WithExpression};
 
 #[derive(Debug)]
 enum Oper {
@@ -30,51 +30,54 @@ enum Oper {
     Or,
 }
 
-fn parens(i: &str) -> IResult<&str, Expression> {
+fn parens(i: &str) -> IResult<&str, ExpressionVariant> {
     delimited(
         multispace0,
         delimited(
             tag("("),
-            map(expr, |e| Expression::Parens(Box::new(e))),
+            map(expr, |e| ExpressionVariant::Parens(Box::new(e))),
             tag(")"),
         ),
         multispace0,
     )(i)
 }
 
-fn factor(i: &str) -> IResult<&str, Expression> {
+fn factor(i: &str) -> IResult<&str, ExpressionVariant> {
     alt((
         delimited(multispace0, with_expression, multispace0),
         map(
             delimited(multispace0, simple_license_expression, multispace0),
-            Expression::Simple,
+            ExpressionVariant::Simple,
         ),
         parens,
     ))(i)
 }
 
-fn with_expression(i: &str) -> IResult<&str, Expression> {
+fn with_expression(i: &str) -> IResult<&str, ExpressionVariant> {
     map(
         separated_pair(
             simple_license_expression,
             delimited(multispace1, tag_no_case("WITH"), multispace1),
             idstring,
         ),
-        |(lic, exc)| Expression::With(WithExpression::new(lic, exc.to_string())),
+        |(lic, exc)| ExpressionVariant::With(WithExpression::new(lic, exc.to_string())),
     )(i)
 }
 
-fn fold_exprs(initial: Expression, remainder: Vec<(Oper, Expression)>) -> Expression {
+fn fold_exprs(
+    initial: ExpressionVariant,
+    remainder: Vec<(Oper, ExpressionVariant)>,
+) -> ExpressionVariant {
     remainder.into_iter().fold(initial, |acc, pair| {
         let (oper, expr) = pair;
         match oper {
-            Oper::And => Expression::And(Box::new(acc), Box::new(expr)),
-            Oper::Or => Expression::Or(Box::new(acc), Box::new(expr)),
+            Oper::And => ExpressionVariant::And(Box::new(acc), Box::new(expr)),
+            Oper::Or => ExpressionVariant::Or(Box::new(acc), Box::new(expr)),
         }
     })
 }
 
-fn term(i: &str) -> IResult<&str, Expression> {
+fn term(i: &str) -> IResult<&str, ExpressionVariant> {
     let (i, initial) = factor(i)?;
     let (i, remainder) = many0(|i| {
         let (i, and) = preceded(tag_no_case("AND"), factor)(i)?;
@@ -84,7 +87,7 @@ fn term(i: &str) -> IResult<&str, Expression> {
     Ok((i, fold_exprs(initial, remainder)))
 }
 
-pub fn expr(i: &str) -> IResult<&str, Expression> {
+pub fn expr(i: &str) -> IResult<&str, ExpressionVariant> {
     let (i, initial) = term(i)?;
     let (i, remainder) = many0(|i| {
         let (i, or) = preceded(tag_no_case("OR"), term)(i)?;
@@ -136,10 +139,10 @@ mod test {
 
     #[test]
     fn parse_a_license_id_correctly() {
-        let parsed = Expression::parse("spdx.license-id").unwrap();
+        let parsed = ExpressionVariant::parse("spdx.license-id").unwrap();
         assert_eq!(
             parsed,
-            Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::Simple(SimpleExpression::new(
                 "spdx.license-id".to_string(),
                 None,
                 false
@@ -149,28 +152,28 @@ mod test {
 
     #[test]
     fn parse_a_license_id_starting_with_a_digit_correctly() {
-        let parsed = Expression::parse("0license").unwrap();
+        let parsed = ExpressionVariant::parse("0license").unwrap();
         assert_eq!(
             parsed,
-            Expression::Simple(SimpleExpression::new("0license".to_string(), None, false))
+            ExpressionVariant::Simple(SimpleExpression::new("0license".to_string(), None, false))
         );
     }
 
     #[test]
     fn parse_a_license_id_with_any_later_version_correctly() {
-        let parsed = Expression::parse("license+").unwrap();
+        let parsed = ExpressionVariant::parse("license+").unwrap();
         assert_eq!(
             parsed,
-            Expression::Simple(SimpleExpression::new("license+".to_string(), None, false))
+            ExpressionVariant::Simple(SimpleExpression::new("license+".to_string(), None, false))
         );
     }
 
     #[test]
     fn parse_a_document_ref_correctly() {
-        let parsed = Expression::parse("DocumentRef-document:LicenseRef-license").unwrap();
+        let parsed = ExpressionVariant::parse("DocumentRef-document:LicenseRef-license").unwrap();
         assert_eq!(
             parsed,
-            Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::Simple(SimpleExpression::new(
                 "license".to_string(),
                 Some("document".to_string()),
                 true
@@ -180,19 +183,19 @@ mod test {
 
     #[test]
     fn parse_a_license_ref_correctly() {
-        let parsed = Expression::parse("LicenseRef-license").unwrap();
+        let parsed = ExpressionVariant::parse("LicenseRef-license").unwrap();
         assert_eq!(
             parsed,
-            Expression::Simple(SimpleExpression::new("license".to_string(), None, true))
+            ExpressionVariant::Simple(SimpleExpression::new("license".to_string(), None, true))
         );
     }
 
     #[test]
     fn parse_a_with_expression_correctly() {
-        let parsed = Expression::parse("license WITH exception").unwrap();
+        let parsed = ExpressionVariant::parse("license WITH exception").unwrap();
         assert_eq!(
             parsed,
-            Expression::With(WithExpression::new(
+            ExpressionVariant::With(WithExpression::new(
                 SimpleExpression::new("license".to_string(), None, false),
                 "exception".to_string()
             ))
@@ -201,33 +204,33 @@ mod test {
 
     #[test]
     fn parse_a_complex_expression_correctly() {
-        let parsed = Expression::parse(
+        let parsed = ExpressionVariant::parse(
             "license1+ and ((license2 with exception1) OR license3+ AND license4 WITH exception2)",
         )
         .unwrap();
 
         assert_eq!(
             parsed,
-            Expression::And(
-                Box::new(Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::And(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license1+".to_string(),
                     None,
                     false
                 ))),
-                Box::new(Expression::Parens(Box::new(Expression::Or(
-                    Box::new(Expression::Parens(Box::new(Expression::With(
-                        WithExpression::new(
+                Box::new(ExpressionVariant::Parens(Box::new(ExpressionVariant::Or(
+                    Box::new(ExpressionVariant::Parens(Box::new(
+                        ExpressionVariant::With(WithExpression::new(
                             SimpleExpression::new("license2".to_string(), None, false),
                             "exception1".to_string()
-                        )
-                    )))),
-                    Box::new(Expression::And(
-                        Box::new(Expression::Simple(SimpleExpression::new(
+                        ))
+                    ))),
+                    Box::new(ExpressionVariant::And(
+                        Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                             "license3+".to_string(),
                             None,
                             false
                         ))),
-                        Box::new(Expression::With(WithExpression::new(
+                        Box::new(ExpressionVariant::With(WithExpression::new(
                             SimpleExpression::new("license4".to_string(), None, false),
                             "exception2".to_string()
                         )))
@@ -239,10 +242,10 @@ mod test {
 
     #[test]
     fn bind_plus_stronger_than_with() {
-        let parsed = Expression::parse("license+ WITH exception").unwrap();
+        let parsed = ExpressionVariant::parse("license+ WITH exception").unwrap();
         assert_eq!(
             parsed,
-            Expression::With(WithExpression::new(
+            ExpressionVariant::With(WithExpression::new(
                 SimpleExpression::new("license+".to_string(), None, false),
                 "exception".to_string()
             ))
@@ -251,16 +254,16 @@ mod test {
 
     #[test]
     fn bind_with_stronger_than_and() {
-        let parsed = Expression::parse("license1 AND license2 WITH exception").unwrap();
+        let parsed = ExpressionVariant::parse("license1 AND license2 WITH exception").unwrap();
         assert_eq!(
             parsed,
-            Expression::And(
-                Box::new(Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::And(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license1".to_string(),
                     None,
                     false
                 ))),
-                Box::new(Expression::With(WithExpression::new(
+                Box::new(ExpressionVariant::With(WithExpression::new(
                     SimpleExpression::new("license2".to_string(), None, false),
                     "exception".to_string()
                 )))
@@ -270,22 +273,22 @@ mod test {
 
     #[test]
     fn bind_and_stronger_than_or() {
-        let parsed = Expression::parse("license1 OR license2 AND license3").unwrap();
+        let parsed = ExpressionVariant::parse("license1 OR license2 AND license3").unwrap();
         assert_eq!(
             parsed,
-            Expression::Or(
-                Box::new(Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::Or(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license1".to_string(),
                     None,
                     false
                 ))),
-                Box::new(Expression::And(
-                    Box::new(Expression::Simple(SimpleExpression::new(
+                Box::new(ExpressionVariant::And(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license2".to_string(),
                         None,
                         false
                     ))),
-                    Box::new(Expression::Simple(SimpleExpression::new(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license3".to_string(),
                         None,
                         false
@@ -297,23 +300,23 @@ mod test {
 
     #[test]
     fn bind_the_and_operator_left_associative() {
-        let parsed = Expression::parse("license1 AND license2 AND license3").unwrap();
+        let parsed = ExpressionVariant::parse("license1 AND license2 AND license3").unwrap();
         assert_eq!(
             parsed,
-            Expression::And(
-                Box::new(Expression::And(
-                    Box::new(Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::And(
+                Box::new(ExpressionVariant::And(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license1".to_string(),
                         None,
                         false
                     ))),
-                    Box::new(Expression::Simple(SimpleExpression::new(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license2".to_string(),
                         None,
                         false
                     )))
                 )),
-                Box::new(Expression::Simple(SimpleExpression::new(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license3".to_string(),
                     None,
                     false
@@ -324,23 +327,23 @@ mod test {
 
     #[test]
     fn bind_the_or_operator_left_associative() {
-        let parsed = Expression::parse("license1 OR license2 OR license3").unwrap();
+        let parsed = ExpressionVariant::parse("license1 OR license2 OR license3").unwrap();
         assert_eq!(
             parsed,
-            Expression::Or(
-                Box::new(Expression::Or(
-                    Box::new(Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::Or(
+                Box::new(ExpressionVariant::Or(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license1".to_string(),
                         None,
                         false
                     ))),
-                    Box::new(Expression::Simple(SimpleExpression::new(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license2".to_string(),
                         None,
                         false
                     )))
                 )),
-                Box::new(Expression::Simple(SimpleExpression::new(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license3".to_string(),
                     None,
                     false
@@ -351,23 +354,23 @@ mod test {
 
     #[test]
     fn respect_parentheses_for_binding_strength_of_operators() {
-        let parsed = Expression::parse("(license1 OR license2) AND license3").unwrap();
+        let parsed = ExpressionVariant::parse("(license1 OR license2) AND license3").unwrap();
         assert_eq!(
             parsed,
-            Expression::And(
-                Box::new(Expression::Parens(Box::new(Expression::Or(
-                    Box::new(Expression::Simple(SimpleExpression::new(
+            ExpressionVariant::And(
+                Box::new(ExpressionVariant::Parens(Box::new(ExpressionVariant::Or(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license1".to_string(),
                         None,
                         false
                     ))),
-                    Box::new(Expression::Simple(SimpleExpression::new(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                         "license2".to_string(),
                         None,
                         false
                     )))
                 )))),
-                Box::new(Expression::Simple(SimpleExpression::new(
+                Box::new(ExpressionVariant::Simple(SimpleExpression::new(
                     "license3".to_string(),
                     None,
                     false
@@ -378,25 +381,25 @@ mod test {
 
     #[test]
     fn fail_if_plus_is_used_in_an_exception_expression() {
-        let parsed = Expression::parse("license WITH exception+");
+        let parsed = ExpressionVariant::parse("license WITH exception+");
         assert!(parsed.is_err());
     }
 
     #[test]
     fn fail_if_a_compound_expressions_is_used_before_with() {
-        let parsed = Expression::parse("(license1 AND license2) WITH exception");
+        let parsed = ExpressionVariant::parse("(license1 AND license2) WITH exception");
         assert!(parsed.is_err());
     }
 
     #[test]
     fn fail_on_an_invalid_symbol() {
-        let parsed = Expression::parse("/");
+        let parsed = ExpressionVariant::parse("/");
         assert!(parsed.is_err());
     }
 
     #[test]
     fn fail_on_a_syntax_error() {
-        let parsed = Expression::parse("((");
+        let parsed = ExpressionVariant::parse("((");
         assert!(parsed.is_err());
     }
 }
