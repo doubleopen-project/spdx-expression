@@ -13,3 +13,4 @@ mod parser;
 
 pub use error::SpdxExpressionError;
 pub use expression::SpdxExpression;
+pub use expression_variant::SimpleExpression;

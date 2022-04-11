@@ -4,9 +4,12 @@
 
 //! The main struct of the library.
 
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display, string::ToString};
 
-use crate::{error::SpdxExpressionError, expression_variant::ExpressionVariant};
+use crate::{
+    error::SpdxExpressionError,
+    expression_variant::{ExpressionVariant, SimpleExpression},
+};
 
 /// Main struct for SPDX License Expressions.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,29 +54,105 @@ impl SpdxExpression {
         })
     }
 
-    /// Get all license and exception identifiers from the `SpdxExpression`. Returns the licenses
-    /// alphabetically sorted and deduped.
+    /// Get all license and exception identifiers from the `SpdxExpression`.
     ///
     /// # Examples
     ///
     /// ```
+    /// # use std::collections::HashSet;
+    /// # use std::iter::FromIterator;
     /// # use spdx_expression::SpdxExpression;
     /// # use spdx_expression::SpdxExpressionError;
     /// #
     /// let expression = SpdxExpression::parse("MIT OR Apache-2.0")?;
-    /// let licenses = expression.licenses();
-    /// assert_eq!(licenses, vec!["Apache-2.0".to_string(), "MIT".to_string()]);
+    /// let licenses = expression.identifiers();
+    /// assert_eq!(licenses, HashSet::from_iter(["Apache-2.0".to_string(), "MIT".to_string()]));
     /// # Ok::<(), SpdxExpressionError>(())
     /// ```
-    pub fn licenses(&self) -> Vec<String> {
-        let expression_string = self.to_string();
-        let licenses = expression_string.split_ascii_whitespace();
-        let licenses = licenses.filter(|&i| i != "OR" && i != "AND" && i != "WITH");
-        let licenses = licenses.map(|i| i.replace('(', "").replace(')', ""));
-        let mut licenses = licenses.collect::<Vec<_>>();
-        licenses.sort_unstable();
-        licenses.dedup();
-        licenses
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use std::iter::FromIterator;
+    /// # use spdx_expression::SpdxExpression;
+    /// # use spdx_expression::SpdxExpressionError;
+    /// #
+    /// let expression = SpdxExpression::parse("MIT OR GPL-2.0-only WITH Classpath-exception-2.0")?;
+    /// let licenses = expression.identifiers();
+    /// assert_eq!(
+    ///     licenses,
+    ///     HashSet::from_iter([
+    ///         "MIT".to_string(),
+    ///         "GPL-2.0-only".to_string(),
+    ///         "Classpath-exception-2.0".to_string()
+    ///     ])
+    /// );
+    /// # Ok::<(), SpdxExpressionError>(())
+    /// ```
+    pub fn identifiers(&self) -> HashSet<String> {
+        let mut identifiers = self
+            .licenses()
+            .iter()
+            .map(ToString::to_string)
+            .collect::<HashSet<_>>();
+
+        identifiers.extend(self.exceptions().iter().map(ToString::to_string));
+
+        identifiers
+    }
+
+    /// Get all simple license expressions in `Self`. For licenses with exceptions, returns the
+    /// license without the exception
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use std::iter::FromIterator;
+    /// # use spdx_expression::SpdxExpression;
+    /// # use spdx_expression::SpdxExpressionError;
+    /// #
+    /// let expression = SpdxExpression::parse(
+    ///     "(MIT OR Apache-2.0 AND (GPL-2.0-only WITH Classpath-exception-2.0 OR ISC))",
+    /// )
+    /// .unwrap();
+    ///
+    /// let licenses = expression.licenses();
+    ///
+    /// assert_eq!(
+    ///     licenses
+    ///         .iter()
+    ///         .map(|&license| license.identifier.as_str())
+    ///         .collect::<HashSet<_>>(),
+    ///     HashSet::from_iter(["Apache-2.0", "GPL-2.0-only", "ISC", "MIT"])
+    /// );
+    /// # Ok::<(), SpdxExpressionError>(())
+    /// ```
+    pub fn licenses(&self) -> HashSet<&SimpleExpression> {
+        self.inner.licenses()
+    }
+
+    /// Get all exception identifiers for `Self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use std::iter::FromIterator;
+    /// # use spdx_expression::SpdxExpression;
+    /// # use spdx_expression::SpdxExpressionError;
+    /// #
+    /// let expression = SpdxExpression::parse(
+    ///     "(MIT OR Apache-2.0 AND (GPL-2.0-only WITH Classpath-exception-2.0 OR ISC))",
+    /// )
+    /// .unwrap();
+    ///
+    /// let exceptions = expression.exceptions();
+    ///
+    /// assert_eq!(exceptions, HashSet::from_iter(["Classpath-exception-2.0"]));
+    /// # Ok::<(), SpdxExpressionError>(())
+    /// ```
+    pub fn exceptions(&self) -> HashSet<&str> {
+        self.inner.exceptions()
     }
 }
 
@@ -85,6 +164,8 @@ impl Display for SpdxExpression {
 
 #[cfg(test)]
 mod tests {
+    use std::iter::FromIterator;
+
     use super::*;
 
     #[test]
@@ -94,17 +175,39 @@ mod tests {
     }
 
     #[test]
-    fn test_licenses_from_simple_expression() {
+    fn test_identifiers_from_simple_expression() {
         let expression = SpdxExpression::parse("MIT").unwrap();
-        let licenses = expression.licenses();
-        assert_eq!(licenses, vec!["MIT".to_string()]);
+        let licenses = expression.identifiers();
+        assert_eq!(licenses, HashSet::from_iter(["MIT".to_string()]));
     }
 
     #[test]
-    fn test_licenses_from_compound_or_expression() {
+    fn test_identifiers_from_compound_or_expression() {
         let expression = SpdxExpression::parse("MIT OR Apache-2.0").unwrap();
-        let licenses = expression.licenses();
-        assert_eq!(licenses, vec!["Apache-2.0".to_string(), "MIT".to_string()]);
+        let licenses = expression.identifiers();
+        assert_eq!(
+            licenses,
+            HashSet::from_iter(["Apache-2.0".to_string(), "MIT".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_identifiers_from_compound_parentheses_expression() {
+        let expression = SpdxExpression::parse(
+            "(MIT OR Apache-2.0 AND (GPL-2.0-only WITH Classpath-exception-2.0 OR ISC))",
+        )
+        .unwrap();
+        let licenses = expression.identifiers();
+        assert_eq!(
+            licenses,
+            HashSet::from_iter([
+                "Apache-2.0".to_string(),
+                "Classpath-exception-2.0".to_string(),
+                "GPL-2.0-only".to_string(),
+                "ISC".to_string(),
+                "MIT".to_string()
+            ])
+        );
     }
 
     #[test]
@@ -113,16 +216,27 @@ mod tests {
             "(MIT OR Apache-2.0 AND (GPL-2.0-only WITH Classpath-exception-2.0 OR ISC))",
         )
         .unwrap();
+
         let licenses = expression.licenses();
+
         assert_eq!(
-            licenses,
-            vec![
-                "Apache-2.0".to_string(),
-                "Classpath-exception-2.0".to_string(),
-                "GPL-2.0-only".to_string(),
-                "ISC".to_string(),
-                "MIT".to_string()
-            ]
+            licenses
+                .iter()
+                .map(|&license| license.identifier.as_str())
+                .collect::<HashSet<_>>(),
+            HashSet::from_iter(["Apache-2.0", "GPL-2.0-only", "ISC", "MIT"])
         );
+    }
+
+    #[test]
+    fn test_exceptions_from_compound_parentheses_expression() {
+        let expression = SpdxExpression::parse(
+            "(MIT OR Apache-2.0 AND (GPL-2.0-only WITH Classpath-exception-2.0 OR ISC))",
+        )
+        .unwrap();
+
+        let exceptions = expression.exceptions();
+
+        assert_eq!(exceptions, HashSet::from_iter(["Classpath-exception-2.0"]));
     }
 }

@@ -4,16 +4,22 @@
 
 //! Private inner structs for [`crate::SpdxExpression`].
 
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 use nom::Finish;
 
 use crate::{error::SpdxExpressionError, parser::expr};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Simple SPDX license expression.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SimpleExpression {
+    /// The license identifier.
     pub identifier: String,
+
+    /// Optional DocumentRef for the expression.
     pub document_ref: Option<String>,
+
+    /// `true` if the expression is a user defined license reference.
     pub license_ref: bool,
 }
 
@@ -36,6 +42,7 @@ impl Display for SimpleExpression {
 }
 
 impl SimpleExpression {
+    /// Create a new simple expression.
     pub const fn new(identifier: String, document_ref: Option<String>, license_ref: bool) -> Self {
         Self {
             identifier,
@@ -103,10 +110,54 @@ impl ExpressionVariant {
             Err(SpdxExpressionError::Parse(i.to_string()))
         }
     }
+
+    pub fn licenses(&self) -> HashSet<&SimpleExpression> {
+        let mut expressions = HashSet::new();
+
+        match self {
+            ExpressionVariant::Simple(expression) => {
+                expressions.insert(expression);
+            }
+            ExpressionVariant::With(expression) => {
+                expressions.insert(&expression.license);
+            }
+            ExpressionVariant::And(left, right) | ExpressionVariant::Or(left, right) => {
+                expressions.extend(left.licenses());
+                expressions.extend(right.licenses());
+            }
+            ExpressionVariant::Parens(expression) => {
+                expressions.extend(expression.licenses());
+            }
+        }
+
+        expressions
+    }
+
+    pub fn exceptions(&self) -> HashSet<&str> {
+        let mut expressions = HashSet::new();
+
+        match self {
+            ExpressionVariant::Simple(_) => {}
+            ExpressionVariant::With(expression) => {
+                expressions.insert(expression.exception.as_str());
+            }
+            ExpressionVariant::And(left, right) | ExpressionVariant::Or(left, right) => {
+                expressions.extend(left.exceptions());
+                expressions.extend(right.exceptions());
+            }
+            ExpressionVariant::Parens(expression) => {
+                expressions.extend(expression.exceptions());
+            }
+        }
+
+        expressions
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::iter::FromIterator;
+
     use super::*;
 
     #[test]
@@ -196,6 +247,80 @@ mod tests {
         assert_eq!(
             expression.to_string(),
             "license1 OR license2 OR license3".to_string()
+        );
+    }
+
+    #[test]
+    fn get_licenses_correctly() {
+        let expression = ExpressionVariant::And(
+            Box::new(ExpressionVariant::Simple(SimpleExpression::new(
+                "license1+".to_string(),
+                None,
+                false,
+            ))),
+            Box::new(ExpressionVariant::Parens(Box::new(ExpressionVariant::Or(
+                Box::new(ExpressionVariant::Parens(Box::new(
+                    ExpressionVariant::With(WithExpression::new(
+                        SimpleExpression::new("license2".to_string(), None, false),
+                        "exception1".to_string(),
+                    )),
+                ))),
+                Box::new(ExpressionVariant::And(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
+                        "license3+".to_string(),
+                        None,
+                        false,
+                    ))),
+                    Box::new(ExpressionVariant::With(WithExpression::new(
+                        SimpleExpression::new("license4".to_string(), None, false),
+                        "exception2".to_string(),
+                    ))),
+                )),
+            )))),
+        );
+
+        assert_eq!(
+            expression.licenses(),
+            HashSet::from_iter([
+                &SimpleExpression::new("license1+".to_string(), None, false),
+                &SimpleExpression::new("license2".to_string(), None, false),
+                &SimpleExpression::new("license3+".to_string(), None, false),
+                &SimpleExpression::new("license4".to_string(), None, false),
+            ])
+        );
+    }
+    #[test]
+    fn get_exceptions_correctly() {
+        let expression = ExpressionVariant::And(
+            Box::new(ExpressionVariant::Simple(SimpleExpression::new(
+                "license1+".to_string(),
+                None,
+                false,
+            ))),
+            Box::new(ExpressionVariant::Parens(Box::new(ExpressionVariant::Or(
+                Box::new(ExpressionVariant::Parens(Box::new(
+                    ExpressionVariant::With(WithExpression::new(
+                        SimpleExpression::new("license2".to_string(), None, false),
+                        "exception1".to_string(),
+                    )),
+                ))),
+                Box::new(ExpressionVariant::And(
+                    Box::new(ExpressionVariant::Simple(SimpleExpression::new(
+                        "license3+".to_string(),
+                        None,
+                        false,
+                    ))),
+                    Box::new(ExpressionVariant::With(WithExpression::new(
+                        SimpleExpression::new("license4".to_string(), None, false),
+                        "exception2".to_string(),
+                    ))),
+                )),
+            )))),
+        );
+
+        assert_eq!(
+            expression.exceptions(),
+            HashSet::from_iter(["exception1", "exception2"])
         );
     }
 }
