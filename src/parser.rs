@@ -126,7 +126,7 @@ fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     //! A lot of the test cases for parsing are copied from
     //! <https://github.com/oss-review-toolkit/ort/blob/6eb18b6d36f59c6d7ec221bad1cf5d4cd6acfc8b/utils/spdx/src/test/kotlin/SpdxExpressionParserTest.kt>
     //! which is licensed under the Apache License, Version 2.0 and includes the following copyright
