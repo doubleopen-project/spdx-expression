@@ -12,4 +12,4 @@ mod expression_variant;
 mod parser;
 
 pub use error::SpdxExpressionError;
-pub use expression::SPDXExpression;
+pub use expression::SpdxExpression;

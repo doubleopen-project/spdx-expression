@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-//! Private inner structs for [`crate::SPDXExpression`].
+//! Private inner structs for [`crate::SpdxExpression`].
 
 use std::fmt::Display;
 

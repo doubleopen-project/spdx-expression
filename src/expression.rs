@@ -10,12 +10,12 @@ use crate::{error::SpdxExpressionError, expression_variant::ExpressionVariant};
 
 /// Main struct for SPDX License Expressions.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SPDXExpression {
+pub struct SpdxExpression {
     /// The parsed expression.
     inner: ExpressionVariant,
 }
 
-impl SPDXExpression {
+impl SpdxExpression {
     /// Parse `Self` from a string. The input expression needs to be a syntactically valid SPDX
     /// expression, `NONE` or `NOASSERTION`. The parser accepts license identifiers that are not
     /// valid SPDX.
@@ -23,10 +23,10 @@ impl SPDXExpression {
     /// # Examples
     ///
     /// ```
-    /// # use spdx_expression::SPDXExpression;
+    /// # use spdx_expression::SpdxExpression;
     /// # use spdx_expression::SpdxExpressionError;
     /// #
-    /// let expression = SPDXExpression::parse("MIT")?;
+    /// let expression = SpdxExpression::parse("MIT")?;
     /// # Ok::<(), SpdxExpressionError>(())
     /// ```
     ///
@@ -34,10 +34,10 @@ impl SPDXExpression {
     /// identifiers not on the SPDX license list or not specified with `LicenseRef`.
     ///
     /// ```
-    /// # use spdx_expression::SPDXExpression;
+    /// # use spdx_expression::SpdxExpression;
     /// # use spdx_expression::SpdxExpressionError;
     /// #
-    /// let expression = SPDXExpression::parse("MIT OR InvalidLicenseId")?;
+    /// let expression = SpdxExpression::parse("MIT OR InvalidLicenseId")?;
     /// # Ok::<(), SpdxExpressionError>(())
     /// ```
     ///
@@ -51,16 +51,16 @@ impl SPDXExpression {
         })
     }
 
-    /// Get all license and exception identifiers from the `SPDXExpression`. Returns the licenses
+    /// Get all license and exception identifiers from the `SpdxExpression`. Returns the licenses
     /// alphabetically sorted and deduped.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use spdx_expression::SPDXExpression;
+    /// # use spdx_expression::SpdxExpression;
     /// # use spdx_expression::SpdxExpressionError;
     /// #
-    /// let expression = SPDXExpression::parse("MIT OR Apache-2.0")?;
+    /// let expression = SpdxExpression::parse("MIT OR Apache-2.0")?;
     /// let licenses = expression.licenses();
     /// assert_eq!(licenses, vec!["Apache-2.0".to_string(), "MIT".to_string()]);
     /// # Ok::<(), SpdxExpressionError>(())
@@ -77,7 +77,7 @@ impl SPDXExpression {
     }
 }
 
-impl Display for SPDXExpression {
+impl Display for SpdxExpression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.inner)
     }
@@ -89,27 +89,27 @@ mod tests {
 
     #[test]
     fn test_parsing_works() {
-        let expression = SPDXExpression::parse("MIT AND (Apache-2.0 OR ISC)").unwrap();
+        let expression = SpdxExpression::parse("MIT AND (Apache-2.0 OR ISC)").unwrap();
         assert_eq!(expression.to_string(), "MIT AND (Apache-2.0 OR ISC)");
     }
 
     #[test]
     fn test_licenses_from_simple_expression() {
-        let expression = SPDXExpression::parse("MIT").unwrap();
+        let expression = SpdxExpression::parse("MIT").unwrap();
         let licenses = expression.licenses();
         assert_eq!(licenses, vec!["MIT".to_string()]);
     }
 
     #[test]
     fn test_licenses_from_compound_or_expression() {
-        let expression = SPDXExpression::parse("MIT OR Apache-2.0").unwrap();
+        let expression = SpdxExpression::parse("MIT OR Apache-2.0").unwrap();
         let licenses = expression.licenses();
         assert_eq!(licenses, vec!["Apache-2.0".to_string(), "MIT".to_string()]);
     }
 
     #[test]
     fn test_licenses_from_compound_parentheses_expression() {
-        let expression = SPDXExpression::parse(
+        let expression = SpdxExpression::parse(
             "(MIT OR Apache-2.0 AND (GPL-2.0-only WITH Classpath-exception-2.0 OR ISC))",
         )
         .unwrap();
