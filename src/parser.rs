@@ -25,38 +25,38 @@ use nom::{
 use crate::expression_variant::{ExpressionVariant, SimpleExpression, WithExpression};
 
 #[derive(Debug)]
-enum Oper {
+enum Operator {
     And,
     Or,
 }
 
-fn parens(i: &str) -> IResult<&str, ExpressionVariant> {
+fn parentheses(i: &str) -> IResult<&str, ExpressionVariant> {
     delimited(
         multispace0,
         delimited(
             tag("("),
-            map(expr, |e| ExpressionVariant::Parens(Box::new(e))),
+            map(or_expression, |e| ExpressionVariant::Parens(Box::new(e))),
             tag(")"),
         ),
         multispace0,
     )(i)
 }
 
-fn factor(i: &str) -> IResult<&str, ExpressionVariant> {
+fn terminal_expression(i: &str) -> IResult<&str, ExpressionVariant> {
     alt((
         delimited(multispace0, with_expression, multispace0),
         map(
-            delimited(multispace0, simple_license_expression, multispace0),
+            delimited(multispace0, simple_expression, multispace0),
             ExpressionVariant::Simple,
         ),
-        parens,
+        parentheses,
     ))(i)
 }
 
 fn with_expression(i: &str) -> IResult<&str, ExpressionVariant> {
     map(
         separated_pair(
-            simple_license_expression,
+            simple_expression,
             delimited(multispace1, tag_no_case("WITH"), multispace1),
             idstring,
         ),
@@ -64,37 +64,41 @@ fn with_expression(i: &str) -> IResult<&str, ExpressionVariant> {
     )(i)
 }
 
-fn fold_exprs(
+fn fold_expressions(
     initial: ExpressionVariant,
-    remainder: Vec<(Oper, ExpressionVariant)>,
+    remainder: Vec<(Operator, ExpressionVariant)>,
 ) -> ExpressionVariant {
     remainder.into_iter().fold(initial, |acc, pair| {
         let (oper, expr) = pair;
         match oper {
-            Oper::And => ExpressionVariant::And(Box::new(acc), Box::new(expr)),
-            Oper::Or => ExpressionVariant::Or(Box::new(acc), Box::new(expr)),
+            Operator::And => ExpressionVariant::And(Box::new(acc), Box::new(expr)),
+            Operator::Or => ExpressionVariant::Or(Box::new(acc), Box::new(expr)),
         }
     })
 }
 
-fn term(i: &str) -> IResult<&str, ExpressionVariant> {
-    let (i, initial) = factor(i)?;
+fn and_expression(i: &str) -> IResult<&str, ExpressionVariant> {
+    let (i, initial) = terminal_expression(i)?;
     let (i, remainder) = many0(|i| {
-        let (i, and) = preceded(tag_no_case("AND"), factor)(i)?;
-        Ok((i, (Oper::And, and)))
+        let (i, and) = preceded(tag_no_case("AND"), terminal_expression)(i)?;
+        Ok((i, (Operator::And, and)))
     })(i)?;
 
-    Ok((i, fold_exprs(initial, remainder)))
+    Ok((i, fold_expressions(initial, remainder)))
 }
 
-pub fn expr(i: &str) -> IResult<&str, ExpressionVariant> {
-    let (i, initial) = term(i)?;
+fn or_expression(i: &str) -> IResult<&str, ExpressionVariant> {
+    let (i, initial) = and_expression(i)?;
     let (i, remainder) = many0(|i| {
-        let (i, or) = preceded(tag_no_case("OR"), term)(i)?;
-        Ok((i, (Oper::Or, or)))
+        let (i, or) = preceded(tag_no_case("OR"), and_expression)(i)?;
+        Ok((i, (Operator::Or, or)))
     })(i)?;
 
-    Ok((i, fold_exprs(initial, remainder)))
+    Ok((i, fold_expressions(initial, remainder)))
+}
+
+pub fn parse_expression(i: &str) -> IResult<&str, ExpressionVariant> {
+    or_expression(i)
 }
 
 fn idstring(i: &str) -> IResult<&str, &str> {
@@ -113,7 +117,7 @@ fn license_ref(i: &str) -> IResult<&str, (Option<&str>, &str)> {
     separated_pair(opt(document_ref), tag("LicenseRef-"), idstring)(i)
 }
 
-fn simple_license_expression(i: &str) -> IResult<&str, SimpleExpression> {
+fn simple_expression(i: &str) -> IResult<&str, SimpleExpression> {
     alt((
         map(license_ref, |(document_ref, id)| {
             let document_ref = document_ref.map(std::string::ToString::to_string);

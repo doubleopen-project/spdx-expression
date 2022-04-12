@@ -8,7 +8,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use nom::Finish;
 
-use crate::{error::SpdxExpressionError, parser::expr};
+use crate::{error::SpdxExpressionError, parser::parse_expression};
 
 /// Simple SPDX license expression.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -100,7 +100,7 @@ impl Display for ExpressionVariant {
 
 impl ExpressionVariant {
     pub fn parse(i: &str) -> Result<Self, SpdxExpressionError> {
-        let (remaining, expression) = expr(i)
+        let (remaining, expression) = parse_expression(i)
             .finish()
             .map_err(|_| SpdxExpressionError::Parse(i.to_string()))?;
 
