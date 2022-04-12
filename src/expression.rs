@@ -6,6 +6,8 @@
 
 use std::{collections::HashSet, fmt::Display, string::ToString};
 
+use serde::{de::Visitor, Deserialize, Serialize};
+
 use crate::{
     error::SpdxExpressionError,
     expression_variant::{ExpressionVariant, SimpleExpression},
@@ -156,6 +158,62 @@ impl SpdxExpression {
     }
 }
 
+impl Default for SpdxExpression {
+    fn default() -> Self {
+        Self::parse("NOASSERTION").expect("will not fail")
+    }
+}
+
+impl Serialize for SpdxExpression {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
+struct SpdxExpressionVisitor;
+
+impl<'de> Visitor<'de> for SpdxExpressionVisitor {
+    type Value = SpdxExpression;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a syntactically valid SPDX expression")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        SpdxExpression::parse(v)
+            .map_err(|err| E::custom(format!("error parsing the expression: {}", err)))
+    }
+
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        self.visit_str(v)
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        self.visit_str(&v)
+    }
+}
+
+impl<'de> Deserialize<'de> for SpdxExpression {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(SpdxExpressionVisitor)
+    }
+}
+
 impl Display for SpdxExpression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.inner)
@@ -165,6 +223,8 @@ impl Display for SpdxExpression {
 #[cfg(test)]
 mod tests {
     use std::iter::FromIterator;
+
+    use serde_json::Value;
 
     use super::*;
 
@@ -238,5 +298,25 @@ mod tests {
         let exceptions = expression.exceptions();
 
         assert_eq!(exceptions, HashSet::from_iter(["Classpath-exception-2.0"]));
+    }
+
+    #[test]
+    fn serialize_expression_correctly() {
+        let expression = SpdxExpression::parse("MIT OR ISC").unwrap();
+
+        let value = serde_json::to_value(expression).unwrap();
+
+        assert_eq!(value, Value::String("MIT OR ISC".to_string()));
+    }
+
+    #[test]
+    fn deserialize_expression_correctly() {
+        let expected = SpdxExpression::parse("MIT OR ISC").unwrap();
+
+        let value = Value::String("MIT OR ISC".to_string());
+
+        let actual: SpdxExpression = serde_json::from_value(value).unwrap();
+
+        assert_eq!(actual, expected);
     }
 }
