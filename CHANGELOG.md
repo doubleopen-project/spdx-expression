@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add function to `SimpleExpression` from a `&str`.
+
 ## [0.5.0] - 2022-04-12
 
 ### Changed

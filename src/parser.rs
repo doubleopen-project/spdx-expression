@@ -117,7 +117,7 @@ fn license_ref(i: &str) -> IResult<&str, (Option<&str>, &str)> {
     separated_pair(opt(document_ref), tag("LicenseRef-"), idstring)(i)
 }
 
-fn simple_expression(i: &str) -> IResult<&str, SimpleExpression> {
+pub fn simple_expression(i: &str) -> IResult<&str, SimpleExpression> {
     alt((
         map(license_ref, |(document_ref, id)| {
             let document_ref = document_ref.map(std::string::ToString::to_string);

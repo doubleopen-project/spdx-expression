@@ -8,7 +8,10 @@ use std::{collections::HashSet, fmt::Display};
 
 use nom::Finish;
 
-use crate::{error::SpdxExpressionError, parser::parse_expression};
+use crate::{
+    error::SpdxExpressionError,
+    parser::{parse_expression, simple_expression},
+};
 
 /// Simple SPDX license expression.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -48,6 +51,40 @@ impl SimpleExpression {
             identifier,
             document_ref,
             license_ref,
+        }
+    }
+
+    /// Parse a simple expression.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use spdx_expression::SimpleExpression;
+    /// # use spdx_expression::SpdxExpressionError;
+    /// #
+    /// let expression = SimpleExpression::parse("MIT")?;
+    /// # Ok::<(), SpdxExpressionError>(())
+    /// ```
+    ///
+    /// The function will only accept simple expressions, compound expressions will fail.
+    ///
+    /// ```
+    /// # use spdx_expression::SimpleExpression;
+    /// #
+    /// let expression = SimpleExpression::parse("MIT OR ISC");
+    /// assert!(expression.is_err());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Fails if parsing fails.
+    pub fn parse(expression: &str) -> Result<Self, SpdxExpressionError> {
+        let (remaining, result) = simple_expression(expression)?;
+
+        if remaining.is_empty() {
+            Ok(result)
+        } else {
+            Err(SpdxExpressionError::Parse(expression.to_string()))
         }
     }
 }
@@ -322,5 +359,20 @@ mod tests {
             expression.exceptions(),
             HashSet::from_iter(["exception1", "exception2"])
         );
+    }
+
+    #[test]
+    fn parse_simple_expression() {
+        let expression = SimpleExpression::parse("MIT").unwrap();
+        assert_eq!(
+            expression,
+            SimpleExpression::new("MIT".to_string(), None, false)
+        );
+
+        let expression = SimpleExpression::parse("MIT OR ISC");
+        assert!(expression.is_err());
+
+        let expression = SimpleExpression::parse("GPL-2.0-only WITH Classpath-exception-2.0");
+        assert!(expression.is_err());
     }
 }
