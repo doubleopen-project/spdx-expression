@@ -7,6 +7,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use nom::Finish;
+use serde::{de::Visitor, Deserialize, Serialize};
 
 use crate::{
     error::SpdxExpressionError,
@@ -24,6 +25,56 @@ pub struct SimpleExpression {
 
     /// `true` if the expression is a user defined license reference.
     pub license_ref: bool,
+}
+
+impl Serialize for SimpleExpression {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
+struct SimpleExpressionVisitor;
+
+impl<'de> Visitor<'de> for SimpleExpressionVisitor {
+    type Value = SimpleExpression;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a syntactically valid SPDX simple expression")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        SimpleExpression::parse(v)
+            .map_err(|err| E::custom(format!("error parsing the expression: {}", err)))
+    }
+
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        self.visit_str(v)
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        self.visit_str(&v)
+    }
+}
+
+impl<'de> Deserialize<'de> for SimpleExpression {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(SimpleExpressionVisitor)
+    }
 }
 
 impl Display for SimpleExpression {
@@ -194,6 +245,8 @@ impl ExpressionVariant {
 #[cfg(test)]
 mod tests {
     use std::iter::FromIterator;
+
+    use serde_json::Value;
 
     use super::*;
 
@@ -374,5 +427,25 @@ mod tests {
 
         let expression = SimpleExpression::parse("GPL-2.0-only WITH Classpath-exception-2.0");
         assert!(expression.is_err());
+    }
+
+    #[test]
+    fn serialize_simple_expression_correctly() {
+        let expression = SimpleExpression::parse("MIT").unwrap();
+
+        let value = serde_json::to_value(expression).unwrap();
+
+        assert_eq!(value, Value::String("MIT".to_string()));
+    }
+
+    #[test]
+    fn deserialize_simple_expression_correctly() {
+        let expected = SimpleExpression::parse("LicenseRef-license1").unwrap();
+
+        let value = Value::String("LicenseRef-license1".to_string());
+
+        let actual: SimpleExpression = serde_json::from_value(value).unwrap();
+
+        assert_eq!(actual, expected);
     }
 }
