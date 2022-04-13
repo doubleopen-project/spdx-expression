@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2022-04-13
+
+### Added
+
+- Implement `(de)serialize` for `SimpleExpression`.
+
 ## [0.5.1] - 2022-04-13
 
 ### Added
@@ -25,5 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Started keeping a changelog.
 
-[unreleased]: https://github.com/doubleopen-project/spdx-expression/compare/v0.5.1...HEAD
+[unreleased]: https://github.com/doubleopen-project/spdx-expression/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/doubleopen-project/spdx-expression/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/doubleopen-project/spdx-expression/compare/v0.5.0...v0.5.1
