@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v2
         name: Checkout
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: rust
       - uses: actions-rs/cargo@v1
         name: Cargo test
         if: always()
@@ -34,6 +36,8 @@ jobs:
       - uses: actions/checkout@v2
         name: Checkout
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: rust
       - uses: actions-rs/cargo@v1
         name: Cargo clippy
         id: clippy
@@ -47,6 +51,8 @@ jobs:
       - uses: actions/checkout@v2
         name: Checkout
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: rust
       - uses: actions-rs/cargo@v1
         name: Cargo fmt
         id: format
