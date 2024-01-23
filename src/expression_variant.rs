@@ -50,7 +50,7 @@ impl<'de> Visitor<'de> for SimpleExpressionVisitor {
         E: serde::de::Error,
     {
         SimpleExpression::parse(v)
-            .map_err(|err| E::custom(format!("error parsing the expression: {}", err)))
+            .map_err(|err| E::custom(format!("error parsing the expression: {err}")))
     }
 
     fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
@@ -79,12 +79,12 @@ impl<'de> Deserialize<'de> for SimpleExpression {
 
 impl Display for SimpleExpression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let document_ref = match &self.document_ref {
-            Some(document_ref) => {
-                format!("DocumentRef-{}:", document_ref)
-            }
-            None => "".to_string(),
-        };
+        let document_ref = self
+            .document_ref
+            .as_ref()
+            .map_or_else(String::new, |document_ref| {
+                format!("DocumentRef-{document_ref}:")
+            });
 
         let license_ref = if self.license_ref { "LicenseRef-" } else { "" };
         write!(
@@ -203,17 +203,17 @@ impl ExpressionVariant {
         let mut expressions = HashSet::new();
 
         match self {
-            ExpressionVariant::Simple(expression) => {
+            Self::Simple(expression) => {
                 expressions.insert(expression);
             }
-            ExpressionVariant::With(expression) => {
+            Self::With(expression) => {
                 expressions.insert(&expression.license);
             }
-            ExpressionVariant::And(left, right) | ExpressionVariant::Or(left, right) => {
+            Self::And(left, right) | Self::Or(left, right) => {
                 expressions.extend(left.licenses());
                 expressions.extend(right.licenses());
             }
-            ExpressionVariant::Parens(expression) => {
+            Self::Parens(expression) => {
                 expressions.extend(expression.licenses());
             }
         }
@@ -225,15 +225,15 @@ impl ExpressionVariant {
         let mut expressions = HashSet::new();
 
         match self {
-            ExpressionVariant::Simple(_) => {}
-            ExpressionVariant::With(expression) => {
+            Self::Simple(_) => {}
+            Self::With(expression) => {
                 expressions.insert(expression.exception.as_str());
             }
-            ExpressionVariant::And(left, right) | ExpressionVariant::Or(left, right) => {
+            Self::And(left, right) | Self::Or(left, right) => {
                 expressions.extend(left.exceptions());
                 expressions.extend(right.exceptions());
             }
-            ExpressionVariant::Parens(expression) => {
+            Self::Parens(expression) => {
                 expressions.extend(expression.exceptions());
             }
         }

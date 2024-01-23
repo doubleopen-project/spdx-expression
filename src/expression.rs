@@ -187,7 +187,7 @@ impl<'de> Visitor<'de> for SpdxExpressionVisitor {
         E: serde::de::Error,
     {
         SpdxExpression::parse(v)
-            .map_err(|err| E::custom(format!("error parsing the expression: {}", err)))
+            .map_err(|err| E::custom(format!("error parsing the expression: {err}")))
     }
 
     fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
