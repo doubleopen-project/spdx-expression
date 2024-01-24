@@ -14,4 +14,4 @@ Library for parsing and interacting with [SPDX License Expressions][spdx-express
 [crates.io]: https://crates.io/crates/spdx-expression
 [docs.rs-icon]: https://img.shields.io/docsrs/spdx-expression
 [docs.rs]: https://docs.rs/spdx-expression
-[spdx-expression]: https://spdx.github.io/spdx-spec/SPDX-license-expressions/
+[spdx-expression]: https://spdx.github.io/spdx-spec/v2.3/SPDX-license-expressions/
