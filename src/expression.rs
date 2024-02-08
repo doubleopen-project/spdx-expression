@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Main struct for SPDX License Expressions.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpdxExpression {
     /// The parsed expression.
     inner: ExpressionVariant,
