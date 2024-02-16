@@ -140,7 +140,7 @@ impl SimpleExpression {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WithExpression {
     pub license: SimpleExpression,
     pub exception: String,
@@ -163,7 +163,7 @@ impl Display for WithExpression {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Eq)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub enum ExpressionVariant {
     Simple(SimpleExpression),
     With(WithExpression),
